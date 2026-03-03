@@ -7,8 +7,7 @@
     "build": "echo 'Static site, no build needed'"
   },
   "dependencies": {
-    "@upstash/redis": "^1.31.0",
-    "@vercel/kv": "^1.0.0"
+    "@upstash/redis": "^1.31.0"
   },
   "engines": {
     "node": "24.x"
