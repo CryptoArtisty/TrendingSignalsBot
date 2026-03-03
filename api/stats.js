@@ -1,8 +1,10 @@
 // api/stats.js
-// Uses Vercel KV for persistent storage (recommended)
-// First, install: npm i @vercel/kv
+// Using Upstash Redis for persistent storage
 
-import { kv } from '@vercel/kv';
+import { Redis } from '@upstash/redis';
+
+// Initialize Redis client using environment variables
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
     // Set CORS headers
@@ -18,29 +20,36 @@ export default async function handler(req, res) {
     // GET request - return current stats
     if (req.method === 'GET') {
         try {
-            // Get stats from KV store
-            const uniqueUsers = await kv.get('trending_signals_users') || 0;
-            const totalSignals = await kv.get('trending_signals_total') || 0;
-            const startTime = await kv.get('trending_signals_start') || Date.now();
+            // Get stats from Redis
+            const uniqueUsers = await redis.get('trending_signals_users') || 0;
+            const totalSignals = await redis.get('trending_signals_total') || 0;
+            const startTime = await redis.get('trending_signals_start') || Date.now();
             
-            // Also get recent users count (last 24h) if needed
-            const recentUsers = await kv.get('trending_signals_recent') || 0;
+            // Get recent users count (last 24h)
+            const recentUsers = await redis.get('trending_signals_recent') || 0;
+            
+            // Get today's new users (for extra stats)
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            const todayUsers = await redis.get(`stats:${today}`) || 0;
             
             return res.status(200).json({
                 uniqueUsers,
                 totalSignals,
                 startTime,
                 recentUsers,
+                todayUsers,
                 lastUpdated: Date.now(),
                 bot: '@TrendingSignalsBot'
             });
         } catch (error) {
-            console.error('KV fetch error:', error);
-            // Fallback to in-memory if KV fails
+            console.error('Redis fetch error:', error);
+            // Fallback if Redis fails
             return res.status(200).json({
                 uniqueUsers: 0,
                 totalSignals: 0,
                 startTime: Date.now(),
+                recentUsers: 0,
+                todayUsers: 0,
                 bot: '@TrendingSignalsBot'
             });
         }
@@ -56,37 +65,57 @@ export default async function handler(req, res) {
                 // This is one-way - we cannot recover the original chatId
                 const crypto = require('crypto');
                 const hash = crypto.createHash('sha256')
-                    .update(chatId + (process.env.SALT || 'trending-signals-salt'))
+                    .update(chatId.toString() + (process.env.SALT || 'trending-signals-salt'))
                     .digest('hex');
                 
-                // Check if this user has been seen before using KV set with nx (not exists)
-                const isNew = await kv.setnx(`user:${hash}`, Date.now());
+                // Check if this user has been seen before using Redis SETNX (set if not exists)
+                const userKey = `user:${hash}`;
+                const isNew = await redis.setnx(userKey, Date.now());
                 
                 if (isNew === 1) { // 1 means key was set (new user)
-                    await kv.incr('trending_signals_users');
+                    // Increment total users
+                    await redis.incr('trending_signals_users');
                     
-                    // Also track recent users (24h expiry)
-                    await kv.sadd('recent_users', hash);
-                    await kv.expire('recent_users', 86400); // 24 hours
+                    // Add to recent users set with 24h expiry
+                    await redis.sadd('recent_users_set', hash);
+                    await redis.expire('recent_users_set', 86400); // 24 hours
                     
-                    const recentCount = await kv.scard('recent_users');
-                    await kv.set('trending_signals_recent', recentCount);
+                    // Update recent count
+                    const recentCount = await redis.scard('recent_users_set');
+                    await redis.set('trending_signals_recent', recentCount);
+                    
+                    // Track daily new users
+                    const today = new Date().toISOString().split('T')[0];
+                    await redis.incr(`stats:${today}`);
+                    
+                    // Set expiry for daily stats (keep for 30 days)
+                    await redis.expire(`stats:${today}`, 2592000); // 30 days
                 }
                 
                 // Get updated counts
-                const uniqueUsers = await kv.get('trending_signals_users') || 0;
-                const recentUsers = await kv.get('trending_signals_recent') || 0;
+                const uniqueUsers = await redis.get('trending_signals_users') || 0;
+                const recentUsers = await redis.get('trending_signals_recent') || 0;
+                const today = new Date().toISOString().split('T')[0];
+                const todayUsers = await redis.get(`stats:${today}`) || 0;
                 
                 return res.status(200).json({ 
                     success: true, 
                     uniqueUsers,
                     recentUsers,
+                    todayUsers,
                     isNew: isNew === 1
                 });
             }
             
             if (action === 'signal') {
-                await kv.incr('trending_signals_total');
+                // Increment total signals counter
+                await redis.incr('trending_signals_total');
+                
+                // Also track daily signals
+                const today = new Date().toISOString().split('T')[0];
+                await redis.incr(`signals:${today}`);
+                await redis.expire(`signals:${today}`, 2592000); // 30 days
+                
                 return res.status(200).json({ success: true });
             }
             
