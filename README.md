@@ -1,0 +1,2 @@
+# TrendingSignalsBot
+Trending Signals Bot
