@@ -32,6 +32,8 @@ export default async function handler(req, res) {
             return res.status(500).json({ error: 'Bot not configured' });
         }
 
+        console.log(`📨 Sending message to chat ${chatId}`);
+
         // Send message to Telegram
         const telegramResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: 'POST',
@@ -47,9 +49,10 @@ export default async function handler(req, res) {
         const telegramData = await telegramResponse.json();
 
         if (telegramData.ok) {
+            console.log('✅ Message sent successfully');
             return res.status(200).json({ ok: true });
         } else {
-            console.error('Telegram API error:', telegramData);
+            console.error('❌ Telegram API error:', telegramData);
             return res.status(500).json({ 
                 ok: false, 
                 error: 'Failed to send message' 
@@ -57,7 +60,7 @@ export default async function handler(req, res) {
         }
 
     } catch (error) {
-        console.error('Server error:', error);
+        console.error('❌ Server error:', error);
         return res.status(500).json({ error: 'Internal server error' });
     }
 }
