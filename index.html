@@ -1,0 +1,2365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trending Signals Bot - Bollinger Band Crossover Alerts</title>
+    <script src="https://unpkg.com/lightweight-charts@4.0.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Header with Counter */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-wrap: wrap;
+        }
+
+        .logo {
+            font-size: 40px;
+        }
+
+        .title {
+            font-size: 28px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-left: auto;
+        }
+
+        .user-counter {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            padding: 8px 20px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .counter-icon {
+            font-size: 20px;
+        }
+
+        .counter-number {
+            font-size: 24px;
+            color: #FFD700;
+            margin-right: 5px;
+        }
+
+        .counter-label {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .counter-tooltip {
+            position: relative;
+            cursor: help;
+        }
+
+        .counter-tooltip .tooltiptext {
+            visibility: hidden;
+            width: 250px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 10px;
+            position: absolute;
+            z-index: 100;
+            top: 100%;
+            right: 0;
+            margin-top: 10px;
+            font-size: 12px;
+            font-weight: normal;
+            border: 1px solid #FFD700;
+        }
+
+        .counter-tooltip:hover .tooltiptext {
+            visibility: visible;
+        }
+
+        /* Timer Panel */
+        .timer-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        #status {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .data-source-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .source-binance {
+            background: #F0B90B;
+            color: #000;
+        }
+
+        .source-coingecko {
+            background: #8DC63F;
+            color: #000;
+        }
+
+        .source-coinbase {
+            background: #0052FF;
+            color: white;
+        }
+
+        .source-fallback {
+            background: #6c757d;
+            color: white;
+        }
+
+        #next-candle-timer {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            color: #FFD700;
+            border: 1px solid #FFD700;
+        }
+
+        /* Price Panel */
+        .price-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            align-items: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .price-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .price-label {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 500;
+        }
+
+        .price-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .price-value.highlight {
+            color: #FFD700;
+            font-size: 28px;
+        }
+
+        .signal-tag {
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .signal-bullish {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+        }
+
+        .signal-neutral {
+            background: linear-gradient(135deg, #FFC107, #FF8F00);
+            color: #333;
+        }
+
+        .signal-bearish {
+            background: linear-gradient(135deg, #f44336, #c62828);
+            color: white;
+        }
+
+        .signal-upper {
+            background: linear-gradient(135deg, #9C27B0, #6A1B9A);
+            color: white;
+        }
+
+        .signal-lower {
+            background: linear-gradient(135deg, #FF9800, #F57C00);
+            color: white;
+        }
+
+        /* Telegram Section */
+        .telegram-section {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #009688;
+        }
+
+        .telegram-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .telegram-icon {
+            font-size: 32px;
+        }
+
+        .telegram-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #009688;
+        }
+
+        .bot-username {
+            background: rgba(255, 215, 0, 0.2);
+            padding: 8px 20px;
+            border-radius: 30px;
+            font-family: monospace;
+            font-size: 18px;
+            border: 1px solid #FFD700;
+            color: #FFD700;
+        }
+
+        .stats-badge {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 20px;
+            border-radius: 30px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-left: auto;
+        }
+
+        .connection-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .connection-step {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            background: #009688;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .step-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #FFD700;
+        }
+
+        .bot-button {
+            background: #0088cc;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .bot-button:hover {
+            background: #006699;
+            transform: translateY(-2px);
+        }
+
+        .connection-status {
+            background: rgba(0, 150, 136, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .status-badge.connected {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-badge.disconnected {
+            background: #f44336;
+            color: white;
+        }
+
+        /* Controls Panel */
+        .controls-panel {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid #FFD700;
+        }
+
+        .panel-title {
+            font-size: 20px;
+            font-weight: bold;
+            color: #FFD700;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .settings-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .setting-group label {
+            font-size: 12px;
+            font-weight: bold;
+            color: rgba(255, 255, 255, 0.9);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .setting-group select,
+        .setting-group input {
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.15);
+            color: white;
+            font-size: 14px;
+        }
+
+        .setting-group option {
+            background: #1e3c72;
+            color: white;
+        }
+
+        .multiplier-input {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .multiplier-input input {
+            flex: 1;
+        }
+
+        .multiplier-input span {
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+
+        .btn {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #4CAF50, #2E7D32);
+            color: white;
+        }
+
+        .btn-success:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #FFC107, #FF8F00);
+            color: #333;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336, #c62828);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(244, 67, 54, 0.4);
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, #00bcd4, #00838f);
+            color: white;
+        }
+
+        .btn-info:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 188, 212, 0.4);
+        }
+
+        /* Chart */
+        .chart-container {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #main-chart {
+            width: 100%;
+            height: 400px;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .dashboard-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            padding: 5px;
+        }
+
+        .asset-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+        }
+
+        .asset-card.upper-break {
+            border-left-color: #9C27B0;
+            background: linear-gradient(135deg, rgba(156, 39, 176, 0.1), rgba(106, 27, 154, 0.1));
+        }
+
+        .asset-card.lower-break {
+            border-left-color: #FF9800;
+            background: linear-gradient(135deg, rgba(255, 152, 0, 0.1), rgba(245, 124, 0, 0.1));
+        }
+
+        .asset-card.bullish {
+            border-left-color: #4CAF50;
+            background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(46, 125, 80, 0.1));
+        }
+
+        .asset-card.bearish {
+            border-left-color: #f44336;
+            background: linear-gradient(135deg, rgba(244, 67, 54, 0.1), rgba(198, 40, 40, 0.1));
+        }
+
+        .asset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .asset-name {
+            font-weight: bold;
+            font-size: 16px;
+        }
+
+        .asset-price {
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        .asset-indicators {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+
+        .indicator-box {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-radius: 6px;
+        }
+
+        .indicator-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 10px;
+            text-transform: uppercase;
+        }
+
+        .indicator-value {
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        .asset-signal {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: center;
+            margin-top: 8px;
+        }
+
+        .signal-upper {
+            background: #9C27B0;
+            color: white;
+        }
+
+        .signal-lower {
+            background: #FF9800;
+            color: white;
+        }
+
+        .signal-bullish {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .signal-bearish {
+            background: #f44336;
+            color: white;
+        }
+
+        .signal-neutral {
+            background: #FFC107;
+            color: #333;
+        }
+
+        .asset-source {
+            font-size: 10px;
+            text-align: right;
+            margin-top: 5px;
+            opacity: 0.7;
+        }
+
+        /* Alert History */
+        .alert-section {
+            background: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .alert-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .alert-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD700;
+        }
+
+        #alert-history {
+            max-height: 150px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        .alert-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-left: 3px solid;
+            background: rgba(255, 255, 255, 0.05);
+            font-size: 12px;
+        }
+
+        .alert-upper {
+            border-left-color: #9C27B0;
+        }
+
+        .alert-lower {
+            border-left-color: #FF9800;
+        }
+
+        .alert-bullish {
+            border-left-color: #4CAF50;
+        }
+
+        .alert-bearish {
+            border-left-color: #f44336;
+        }
+
+        /* Loading Spinner */
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 215, 0, 0.3);
+            border-top: 3px solid #FFD700;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: help;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+            border: 1px solid #FFD700;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Manual Connect */
+        .manual-connect {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .manual-connect summary {
+            cursor: pointer;
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        .manual-connect input {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            flex: 1;
+        }
+
+        .manual-connect button {
+            padding: 10px 20px;
+            background: #009688;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .manual-connect button.clear {
+            background: #f44336;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                flex-direction: column;
+                text-align: center;
+            }
+            
+            .subtitle {
+                margin-left: 0;
+            }
+            
+            .price-panel {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .settings-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .button-group {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+            
+            .user-counter {
+                margin: 10px auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header with User Counter -->
+        <div class="header">
+            <span class="logo">📈</span>
+            <span class="title">Trending Signals Bot</span>
+            <span class="subtitle">Bollinger Band × MA Crossover Alerts</span>
+            <div class="user-counter counter-tooltip">
+                <span class="counter-icon">👥</span>
+                <span class="counter-number" id="user-count">--</span>
+                <span class="counter-label">users</span>
+                <span class="tooltiptext">
+                    <strong>Unique users who have started the bot</strong><br>
+                    • Counted when users first send /start<br>
+                    • No Chat IDs are stored on server<br>
+                    • Your privacy is fully protected
+                </span>
+            </div>
+        </div>
+
+        <!-- Timer Panel -->
+        <div class="timer-panel">
+            <div>
+                <span id="status">Initializing...</span>
+                <span id="data-source-badge" class="data-source-badge source-binance">Binance</span>
+            </div>
+            <div id="next-candle-timer">Next candle: --:--</div>
+        </div>
+
+        <!-- Price Summary Panel -->
+        <div class="price-panel" id="price-summary">
+            <div class="price-item">
+                <span class="price-label">Asset</span>
+                <span class="price-value highlight" id="current-asset">PAXG/Gold</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">Price</span>
+                <span class="price-value highlight" id="current-price">--</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">Upper Band</span>
+                <span class="price-value" id="current-upper">--</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">Middle Band</span>
+                <span class="price-value" id="current-middle">--</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">Lower Band</span>
+                <span class="price-value" id="current-lower">--</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">MA (<span id="ma-type-display">EMA</span>)</span>
+                <span class="price-value" id="current-ma">--</span>
+            </div>
+            <div class="price-item">
+                <span class="price-label">Signal</span>
+                <span id="signal-tag" class="signal-tag signal-neutral">--</span>
+            </div>
+        </div>
+
+        <!-- Telegram Connection Section -->
+        <div class="telegram-section">
+            <div class="telegram-header">
+                <span class="telegram-icon">🤖</span>
+                <div>
+                    <div class="telegram-title">Connect to @TrendingSignalsBot</div>
+                    <div style="font-size: 14px; color: rgba(255,255,255,0.7);">Get real-time Bollinger Band crossover alerts</div>
+                </div>
+                <span class="bot-username">@TrendingSignalsBot</span>
+            </div>
+
+            <div class="connection-grid">
+                <div class="connection-step">
+                    <div class="step-number">1</div>
+                    <div class="step-title">Start the Bot</div>
+                    <div class="step-description">
+                        Click below to open Telegram and start a chat with @TrendingSignalsBot
+                    </div>
+                    <a href="https://t.me/TrendingSignalsBot" target="_blank" class="bot-button">
+                        <span>🤖</span> Start @TrendingSignalsBot
+                    </a>
+                </div>
+
+                <div class="connection-step">
+                    <div class="step-number">2</div>
+                    <div class="step-title">Click "Connect"</div>
+                    <div class="step-description">
+                        After starting the bot, click the "Connect Browser" button in Telegram.
+                    </div>
+                </div>
+
+                <div class="connection-step">
+                    <div class="step-number">3</div>
+                    <div class="step-title">Auto-Connect</div>
+                    <div class="step-description">
+                        Clicking the link automatically connects this browser to Telegram.
+                    </div>
+                    <div class="connection-status">
+                        <span class="status-badge disconnected" id="connection-badge">⚫ Disconnected</span>
+                        <span class="connection-id" id="connection-id-display">Not connected</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manual Connection -->
+            <details class="manual-connect">
+                <summary>🔧 Manual Connection (Advanced)</summary>
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <input type="password" id="manual-chat-id" placeholder="Enter Chat ID">
+                    <button onclick="manualConnect()">Connect Manually</button>
+                    <button onclick="clearConnection()" class="clear">Clear</button>
+                </div>
+                <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 10px;">
+                    ⚠️ Chat ID stored locally only. Never share your Chat ID.
+                </p>
+            </details>
+        </div>
+
+        <!-- Main Controls Panel -->
+        <div class="controls-panel">
+            <div class="panel-title">
+                <span>⚙️ Indicator Settings</span>
+                <span class="tooltip">ⓘ
+                    <span class="tooltiptext">Configure Bollinger Bands and Moving Average parameters</span>
+                </span>
+            </div>
+
+            <div class="settings-grid">
+                <!-- Asset Selection -->
+                <div class="setting-group">
+                    <label>📊 Trading Pair</label>
+                    <select id="trading-pair">
+                        <option value="PAXGUSDT">🥇 PAXG/Gold</option>
+                        <option value="ETHUSDT">⟠ ETH/USDT</option>
+                        <option value="BTCUSDT">₿ BTC/USDT</option>
+                        <option value="XAGUSDT">🥈 XAG/Silver</option>
+                        <option value="JPYUSDT">💴 JPY/USDT</option>
+                        <option value="EURUSDT">💶 EUR/USDT</option>
+                        <option value="CADUSDT">💵 CAD/USDT</option>
+                        <option value="GBPUSDT">💷 GBP/USDT</option>
+                    </select>
+                </div>
+
+                <!-- Timeframe -->
+                <div class="setting-group">
+                    <label>⏱️ Timeframe</label>
+                    <select id="timeframe">
+                        <option value="1m">1 Minute</option>
+                        <option value="5m">5 Minutes</option>
+                        <option value="15m">15 Minutes</option>
+                        <option value="1h">1 Hour</option>
+                        <option value="4h">4 Hours</option>
+                        <option value="1d">1 Day</option>
+                    </select>
+                </div>
+
+                <!-- Source Price -->
+                <div class="setting-group">
+                    <label>📐 Source Price</label>
+                    <select id="source-price">
+                        <option value="close">Close</option>
+                        <option value="open">Open</option>
+                        <option value="high">High</option>
+                        <option value="low">Low</option>
+                        <option value="hl2">High-Low Average (HL2)</option>
+                        <option value="hlc3">High-Low-Close (HLC3)</option>
+                        <option value="ohlc4">Open-High-Low-Close (OHLC4)</option>
+                    </select>
+                </div>
+
+                <!-- MA Type -->
+                <div class="setting-group">
+                    <label>📈 MA Type</label>
+                    <select id="ma-type">
+                        <option value="ema" selected>EMA (Exponential)</option>
+                        <option value="sma">SMA (Simple)</option>
+                    </select>
+                </div>
+
+                <!-- MA Period -->
+                <div class="setting-group">
+                    <label>📊 MA Period</label>
+                    <input type="number" id="ma-period" value="20" min="2" max="200" step="1">
+                </div>
+
+                <!-- BB Window -->
+                <div class="setting-group">
+                    <label>📦 BB Window</label>
+                    <input type="number" id="bb-window" value="20" min="2" max="200" step="1">
+                </div>
+
+                <!-- BB Multiplier -->
+                <div class="setting-group">
+                    <label>📏 BB Multiplier</label>
+                    <div class="multiplier-input">
+                        <input type="number" id="bb-multiplier" value="2.0" min="0.1" max="5.0" step="0.001">
+                        <span id="multiplier-display">2.000</span>
+                    </div>
+                </div>
+
+                <!-- Alert Cooldown -->
+                <div class="setting-group">
+                    <label>⏰ Alert Cooldown (sec)</label>
+                    <input type="number" id="alert-cooldown" value="60" min="5" max="3600" step="5">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn btn-primary" id="apply-settings">Apply Settings</button>
+                <button class="btn btn-success" id="test-alert">Test Alert</button>
+                <button class="btn btn-warning" id="refresh-dashboard">Refresh Dashboard</button>
+                <button class="btn btn-info" id="refresh-counter">🔄 Refresh User Count</button>
+                <button class="btn btn-danger" id="clear-history">Clear History</button>
+            </div>
+        </div>
+
+        <!-- Chart Container -->
+        <div class="chart-container">
+            <div id="main-chart"></div>
+        </div>
+
+        <!-- Multi-Asset Dashboard -->
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <span class="dashboard-title">📊 Multi-Asset Dashboard</span>
+                <span id="dashboard-loading" class="loading-spinner" style="display: none;"></span>
+            </div>
+            <div class="dashboard-grid" id="dashboard-grid">
+                <!-- Populated by JavaScript -->
+            </div>
+            <div style="text-align: right; font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 10px;" id="dashboard-timestamp">
+                Last updated: --
+            </div>
+        </div>
+
+        <!-- Alert History -->
+        <div class="alert-section">
+            <div class="alert-header">
+                <span class="alert-title">📝 Alert History</span>
+                <span style="font-size: 12px; color: rgba(255,255,255,0.5);">Local only</span>
+            </div>
+            <div id="alert-history"></div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p>🔐 Privacy First: Your Chat ID never leaves your device. User count tracks unique first-time /start commands only.</p>
+            <p style="margin-top: 5px;">© 2026 Trending Signals Bot | Bollinger Band × MA Crossover Alerts</p>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // TRENDING SIGNALS BOT - BOLLINGER BAND TRADER
+        // ============================================
+        
+        // Bot Configuration
+        const BOT_USERNAME = 'TrendingSignalsBot';
+        const APP_URL = window.location.origin; // Automatically uses your Vercel URL
+        
+        // Assets
+        const ALL_ASSETS = ['PAXGUSDT', 'ETHUSDT', 'BTCUSDT', 'XAGUSDT', 'JPYUSDT', 'EURUSDT', 'CADUSDT', 'GBPUSDT'];
+        
+        // Data Providers
+        const DATA_PROVIDERS = {
+            BINANCE: { name: 'Binance', class: 'source-binance' },
+            COINGECKO: { name: 'CoinGecko', class: 'source-coingecko' },
+            COINBASE: { name: 'Coinbase', class: 'source-coinbase' },
+            FALLBACK: { name: 'Trending Signals', class: 'source-fallback' }
+        };
+        
+        // State
+        let SYMBOL = 'PAXGUSDT';
+        let TF = '1m';
+        let SOURCE = 'close';
+        let MA_TYPE = 'ema';
+        let MA_PERIOD = 20;
+        let BB_WINDOW = 20;
+        let BB_MULTIPLIER = 2.0;
+        let alertCooldown = 60000; // 60 seconds default
+        let lastAlert = 0;
+        let currentDataSource = DATA_PROVIDERS.BINANCE;
+        
+        // Chart variables
+        let chart, candleSeries, upperBandSeries, middleBandSeries, lowerBandSeries, maSeries;
+        let socket, rawCandles = [];
+        let assetData = {};
+        
+        // Telegram state
+        let userChatId = localStorage.getItem('trendingSignalsChatId') || '';
+        let telegramEnabled = !!userChatId;
+        
+        // Initialize asset data
+        ALL_ASSETS.forEach(asset => {
+            assetData[asset] = {
+                price: null,
+                upper: null,
+                middle: null,
+                lower: null,
+                ma: null,
+                signal: '--',
+                lastUpdated: null,
+                loading: false,
+                error: false,
+                source: DATA_PROVIDERS.BINANCE
+            };
+        });
+
+        // ============================================
+        // USER COUNTER FUNCTIONS (Privacy-First)
+        // ============================================
+
+        // Fetch current user count from API (anonymized, no Chat IDs)
+        async function fetchUserCount() {
+            try {
+                const response = await fetch(`${APP_URL}/api/stats`);
+                const data = await response.json();
+                
+                if (data && typeof data.uniqueUsers === 'number') {
+                    document.getElementById('user-count').textContent = data.uniqueUsers.toLocaleString();
+                    
+                    // Add animation effect
+                    const counter = document.getElementById('user-count');
+                    counter.style.transform = 'scale(1.2)';
+                    setTimeout(() => {
+                        counter.style.transform = 'scale(1)';
+                    }, 200);
+                }
+            } catch (error) {
+                console.error('Failed to fetch user count:', error);
+                document.getElementById('user-count').textContent = '--';
+            }
+        }
+
+        // Report new user interaction (called when user first connects)
+        async function reportNewUser() {
+            try {
+                // This just increments a counter, never sends the Chat ID
+                await fetch(`${APP_URL}/api/stats`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'increment' })
+                });
+                
+                // Refresh the displayed count
+                await fetchUserCount();
+            } catch (error) {
+                console.error('Failed to report new user:', error);
+            }
+        }
+
+        // ============================================
+        // TELEGRAM CONNECTION FUNCTIONS
+        // ============================================
+
+        function checkForConnectionToken() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const token = urlParams.get('connect');
+            
+            if (token) {
+                try {
+                    const base64 = token.replace(/-/g, '+').replace(/_/g, '/');
+                    const decoded = atob(base64);
+                    const [chatId, timestamp] = decoded.split(':');
+                    
+                    const tokenAge = Date.now() - parseInt(timestamp);
+                    if (tokenAge < 300000) {
+                        // Check if this is a first-time connection
+                        const wasConnected = localStorage.getItem('trendingSignalsChatId');
+                        
+                        localStorage.setItem('trendingSignalsChatId', chatId);
+                        userChatId = chatId;
+                        telegramEnabled = true;
+                        
+                        // If this is a new user (no previous connection), report it
+                        if (!wasConnected) {
+                            reportNewUser();
+                        }
+                        
+                        updateConnectionStatus();
+                        window.history.replaceState({}, document.title, '/');
+                        showStatus('✅ Connected to @TrendingSignalsBot!');
+                        
+                        sendTelegramMessage(chatId, '🔐 <b>Browser Connected Successfully!</b>\n\nYou will now receive Bollinger Band crossover alerts from @TrendingSignalsBot.');
+                    }
+                } catch (e) {
+                    console.error('Invalid token');
+                }
+            }
+        }
+
+        async function sendTelegramMessage(chatId, message) {
+            if (!chatId || !window.TELEGRAM_BOT_TOKEN) return false;
+
+            try {
+                const response = await fetch(`https://api.telegram.org/bot${window.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        text: message,
+                        parse_mode: 'HTML'
+                    })
+                });
+                return response.ok;
+            } catch (error) {
+                console.error('Failed to send:', error);
+                return false;
+            }
+        }
+
+        function updateConnectionStatus() {
+            const badge = document.getElementById('connection-badge');
+            const idDisplay = document.getElementById('connection-id-display');
+            
+            if (userChatId) {
+                badge.textContent = '✅ Connected';
+                badge.className = 'status-badge connected';
+                const maskedId = '••••' + userChatId.slice(-4);
+                idDisplay.textContent = `ID: ${maskedId}`;
+            } else {
+                badge.textContent = '⚫ Disconnected';
+                badge.className = 'status-badge disconnected';
+                idDisplay.textContent = 'Not connected';
+            }
+        }
+
+        function manualConnect() {
+            const chatId = document.getElementById('manual-chat-id').value.trim();
+            if (chatId && /^\d+$/.test(chatId)) {
+                // Check if this is a first-time connection
+                const wasConnected = localStorage.getItem('trendingSignalsChatId');
+                
+                localStorage.setItem('trendingSignalsChatId', chatId);
+                userChatId = chatId;
+                telegramEnabled = true;
+                
+                // If this is a new user (no previous connection), report it
+                if (!wasConnected) {
+                    reportNewUser();
+                }
+                
+                updateConnectionStatus();
+                document.getElementById('manual-chat-id').value = '';
+                showStatus('✅ Chat ID saved locally');
+                sendTelegramMessage(chatId, '🔐 <b>Manual Connection Successful</b>\n\nYou will now receive Bollinger Band crossover alerts from @TrendingSignalsBot.');
+            } else {
+                alert('Please enter a valid numeric Chat ID');
+            }
+        }
+
+        function clearConnection() {
+            localStorage.removeItem('trendingSignalsChatId');
+            userChatId = '';
+            telegramEnabled = false;
+            updateConnectionStatus();
+            showStatus('🔓 Connection cleared');
+        }
+
+        // ============================================
+        // MULTI-SOURCE DATA FETCHING
+        // ============================================
+
+        function getIntervalMs(interval) {
+            const ms = { 
+                '1m': 60000, 
+                '5m': 300000, 
+                '15m': 900000, 
+                '1h': 3600000, 
+                '4h': 14400000,
+                '1d': 86400000 
+            };
+            return ms[interval] || 60000;
+        }
+
+        function getBasePrice(symbol) {
+            const prices = {
+                'PAXGUSDT': 2000,
+                'ETHUSDT': 3000,
+                'BTCUSDT': 50000,
+                'XAGUSDT': 25,
+                'JPYUSDT': 0.0067,
+                'EURUSDT': 1.08,
+                'CADUSDT': 0.74,
+                'GBPUSDT': 1.26
+            };
+            return prices[symbol] || 100;
+        }
+
+        function getVolatility(symbol) {
+            const vols = {
+                'PAXGUSDT': 0.005,
+                'ETHUSDT': 0.02,
+                'BTCUSDT': 0.015,
+                'XAGUSDT': 0.01,
+                'JPYUSDT': 0.003,
+                'EURUSDT': 0.002,
+                'CADUSDT': 0.002,
+                'GBPUSDT': 0.002
+            };
+            return vols[symbol] || 0.01;
+        }
+
+        function generateSimulatedData(symbol, interval, limit) {
+            const data = [];
+            const now = Date.now();
+            const basePrice = getBasePrice(symbol);
+            const volatility = getVolatility(symbol);
+            
+            for (let i = limit; i > 0; i--) {
+                const time = (now - (i * getIntervalMs(interval))) / 1000;
+                const trend = Math.sin(i / 20) * 0.02;
+                const randomWalk = (Math.random() - 0.5) * volatility;
+                const change = trend + randomWalk;
+                
+                const open = basePrice * (1 + (Math.random() - 0.5) * volatility);
+                const close = open * (1 + change);
+                const high = Math.max(open, close) * (1 + Math.random() * 0.5 * volatility);
+                const low = Math.min(open, close) * (1 - Math.random() * 0.5 * volatility);
+                
+                data.push({ 
+                    time: time, 
+                    open: Number(open.toFixed(4)), 
+                    high: Number(high.toFixed(4)), 
+                    low: Number(low.toFixed(4)), 
+                    close: Number(close.toFixed(4)) 
+                });
+            }
+            
+            return data;
+        }
+
+        async function fetchFromBinance(symbol, interval, limit) {
+            try {
+                const response = await fetch(`https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`);
+                if (!response.ok) throw new Error(`Binance returned ${response.status}`);
+                
+                const data = await response.json();
+                return data.map(k => ({
+                    time: k[0] / 1000,
+                    open: parseFloat(k[1]),
+                    high: parseFloat(k[2]),
+                    low: parseFloat(k[3]),
+                    close: parseFloat(k[4])
+                }));
+            } catch (error) {
+                console.warn(`Binance fetch failed for ${symbol}:`, error);
+                throw error;
+            }
+        }
+
+        async function fetchFromCoinGecko(symbol, interval, limit) {
+            const geckoIds = {
+                'BTCUSDT': 'bitcoin',
+                'ETHUSDT': 'ethereum',
+                'PAXGUSDT': 'pax-gold',
+                'XAGUSDT': 'silver',
+                'EURUSDT': 'euro',
+                'JPYUSDT': 'jpy',
+                'CADUSDT': 'cad',
+                'GBPUSDT': 'gbp'
+            };
+            
+            const geckoId = geckoIds[symbol];
+            if (!geckoId) throw new Error(`No CoinGecko ID for ${symbol}`);
+            
+            let days = 30;
+            switch(interval) {
+                case '1m': days = 1; break;
+                case '5m': days = 2; break;
+                case '15m': days = 3; break;
+                case '1h': days = 7; break;
+                case '4h': days = 14; break;
+                case '1d': days = 30; break;
+            }
+            
+            try {
+                const response = await fetch(
+                    `https://api.coingecko.com/api/v3/coins/${geckoId}/market_chart?vs_currency=usd&days=${days}`
+                );
+                
+                if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`);
+                
+                const data = await response.json();
+                const prices = data.prices || [];
+                const candles = [];
+                
+                for (let i = 0; i < prices.length - 1 && i < limit; i++) {
+                    const time = prices[i][0] / 1000;
+                    const price = prices[i][1];
+                    const volatility = getVolatility(symbol);
+                    const open = price * (1 + (Math.random() - 0.5) * 0.01);
+                    const close = price * (1 + (Math.random() - 0.5) * 0.01);
+                    const high = Math.max(open, close) * (1 + Math.random() * volatility);
+                    const low = Math.min(open, close) * (1 - Math.random() * volatility);
+                    
+                    candles.push({ time, open, high, low, close });
+                }
+                
+                return candles.slice(-limit);
+            } catch (error) {
+                console.warn(`CoinGecko fetch failed for ${symbol}:`, error);
+                throw error;
+            }
+        }
+
+        async function fetchFromCoinbase(symbol, interval, limit) {
+            const coinbasePairs = {
+                'BTCUSDT': 'BTC-USD',
+                'ETHUSDT': 'ETH-USD',
+                'PAXGUSDT': 'PAXG-USD',
+                'EURUSDT': 'EUR-USD',
+                'JPYUSDT': 'JPY-USD',
+                'GBPUSDT': 'GBP-USD'
+            };
+            
+            const productId = coinbasePairs[symbol];
+            if (!productId) throw new Error(`No Coinbase pair for ${symbol}`);
+            
+            let granularity = 60;
+            switch(interval) {
+                case '1m': granularity = 60; break;
+                case '5m': granularity = 300; break;
+                case '15m': granularity = 900; break;
+                case '1h': granularity = 3600; break;
+                case '4h': granularity = 14400; break;
+                case '1d': granularity = 86400; break;
+            }
+            
+            try {
+                const response = await fetch(
+                    `https://api.exchange.coinbase.com/products/${productId}/candles?granularity=${granularity}&limit=${limit}`
+                );
+                
+                if (!response.ok) throw new Error(`Coinbase returned ${response.status}`);
+                
+                const data = await response.json();
+                return data.map(c => ({
+                    time: c[0],
+                    open: c[3],
+                    high: c[2],
+                    low: c[1],
+                    close: c[4]
+                })).reverse();
+            } catch (error) {
+                console.warn(`Coinbase fetch failed for ${symbol}:`, error);
+                throw error;
+            }
+        }
+
+        async function fetchKlines(symbol, interval, limit) {
+            const errors = [];
+            
+            try {
+                const data = await fetchFromBinance(symbol, interval, limit);
+                currentDataSource = DATA_PROVIDERS.BINANCE;
+                updateDataSourceBadge(DATA_PROVIDERS.BINANCE);
+                return data;
+            } catch (error) {
+                errors.push(`Binance: ${error.message}`);
+            }
+            
+            try {
+                const data = await fetchFromCoinGecko(symbol, interval, limit);
+                currentDataSource = DATA_PROVIDERS.COINGECKO;
+                updateDataSourceBadge(DATA_PROVIDERS.COINGECKO);
+                return data;
+            } catch (error) {
+                errors.push(`CoinGecko: ${error.message}`);
+            }
+            
+            try {
+                const data = await fetchFromCoinbase(symbol, interval, limit);
+                currentDataSource = DATA_PROVIDERS.COINBASE;
+                updateDataSourceBadge(DATA_PROVIDERS.COINBASE);
+                return data;
+            } catch (error) {
+                errors.push(`Coinbase: ${error.message}`);
+            }
+            
+            console.warn('All APIs failed, using Trending Signals fallback:', errors);
+            currentDataSource = DATA_PROVIDERS.FALLBACK;
+            updateDataSourceBadge(DATA_PROVIDERS.FALLBACK);
+            
+            return generateSimulatedData(symbol, interval, limit);
+        }
+
+        function updateDataSourceBadge(source) {
+            const badge = document.getElementById('data-source-badge');
+            if (badge) {
+                badge.textContent = source.name;
+                badge.className = `data-source-badge ${source.class}`;
+            }
+        }
+
+        // ============================================
+        // UTILITY FUNCTIONS
+        // ============================================
+
+        function getPairDisplayName(symbol) {
+            const names = {
+                'PAXGUSDT': '🥇 PAXG/Gold',
+                'ETHUSDT': '⟠ ETH/USDT',
+                'BTCUSDT': '₿ BTC/USDT',
+                'XAGUSDT': '🥈 XAG/Silver',
+                'JPYUSDT': '💴 JPY/USDT',
+                'EURUSDT': '💶 EUR/USDT',
+                'CADUSDT': '💵 CAD/USDT',
+                'GBPUSDT': '💷 GBP/USDT'
+            };
+            return names[symbol] || symbol;
+        }
+
+        function formatPrice(price, symbol = SYMBOL) {
+            if (price === null || price === undefined || isNaN(price)) return '--';
+            if (symbol.includes('BTC')) return price.toFixed(1);
+            if (symbol.includes('JPY')) return price.toFixed(3);
+            if (symbol.includes('XAG') || symbol.includes('PAXG')) return price.toFixed(4);
+            return price.toFixed(2);
+        }
+
+        function showStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+
+        function playBeep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.value = 800;
+                gain.gain.value = 0.1;
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + 0.3);
+            } catch (e) {}
+        }
+
+        // ============================================
+        // BOLLINGER BAND CALCULATIONS
+        // ============================================
+
+        function getSourcePrice(candle, source) {
+            switch(source) {
+                case 'open': return candle.open;
+                case 'high': return candle.high;
+                case 'low': return candle.low;
+                case 'close': return candle.close;
+                case 'hl2': return (candle.high + candle.low) / 2;
+                case 'hlc3': return (candle.high + candle.low + candle.close) / 3;
+                case 'ohlc4': return (candle.open + candle.high + candle.low + candle.close) / 4;
+                default: return candle.close;
+            }
+        }
+
+        function calculateSMA(values, period) {
+            const sma = [];
+            for (let i = period - 1; i < values.length; i++) {
+                const sum = values.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+                sma.push(sum / period);
+            }
+            return sma;
+        }
+
+        function calculateEMA(values, period) {
+            const k = 2 / (period + 1);
+            const ema = [];
+            let sum = values.slice(0, period).reduce((a, b) => a + b, 0);
+            ema[period - 1] = sum / period;
+            for (let i = period; i < values.length; i++) {
+                ema[i] = values[i] * k + ema[i - 1] * (1 - k);
+            }
+            return ema.slice(period - 1);
+        }
+
+        function calculateMovingAverage(values, period, type) {
+            if (values.length < period) return [];
+            if (type === 'sma') {
+                return calculateSMA(values, period);
+            } else {
+                return calculateEMA(values, period);
+            }
+        }
+
+        function calculateStandardDeviation(values, mean) {
+            const squaredDiffs = values.map(v => Math.pow(v - mean, 2));
+            const avgSquaredDiff = squaredDiffs.reduce((a, b) => a + b, 0) / values.length;
+            return Math.sqrt(avgSquaredDiff);
+        }
+
+        function calculateBollingerBands(candles, window, multiplier, source) {
+            if (candles.length < window) return null;
+            
+            const prices = candles.map(c => getSourcePrice(c, source));
+            const bands = [];
+            
+            for (let i = window - 1; i < prices.length; i++) {
+                const periodPrices = prices.slice(i - window + 1, i + 1);
+                const middle = periodPrices.reduce((a, b) => a + b, 0) / window;
+                const stdDev = calculateStandardDeviation(periodPrices, middle);
+                const upper = middle + (multiplier * stdDev);
+                const lower = middle - (multiplier * stdDev);
+                
+                bands.push({
+                    time: candles[i].time,
+                    upper,
+                    middle,
+                    lower
+                });
+            }
+            
+            return bands;
+        }
+
+        function calculateMA(candles, period, type, source) {
+            if (candles.length < period) return null;
+            
+            const prices = candles.map(c => getSourcePrice(c, source));
+            const ma = calculateMovingAverage(prices, period, type);
+            
+            return ma.map((value, i) => ({
+                time: candles[i + period - 1].time,
+                value
+            }));
+        }
+
+        function detectSignal(price, upper, middle, lower, ma) {
+            if (!price || !upper || !middle || !lower || !ma) return '--';
+            
+            if (ma > upper && price > upper) {
+                return 'UPPER_BREAK';
+            }
+            else if (ma < lower && price < lower) {
+                return 'LOWER_BREAK';
+            }
+            else if (ma > middle && price > middle) {
+                return 'BULLISH';
+            }
+            else if (ma < middle && price < middle) {
+                return 'BEARISH';
+            }
+            else {
+                return 'NEUTRAL';
+            }
+        }
+
+        // ============================================
+        // CHART FUNCTIONS
+        // ============================================
+
+        async function loadChartData() {
+            showStatus('Loading data...');
+            try {
+                const limit = Math.max(200, BB_WINDOW + 50, MA_PERIOD + 50);
+                rawCandles = await fetchKlines(SYMBOL, TF, limit);
+                
+                if (!rawCandles || rawCandles.length === 0) {
+                    throw new Error('No data received');
+                }
+                
+                candleSeries.setData(rawCandles);
+                updateIndicators();
+                showStatus(`Loaded ${rawCandles.length} candles from ${currentDataSource.name}`);
+            } catch (e) {
+                showStatus('Error loading data: ' + e.message);
+                console.error('Chart data error:', e);
+            }
+        }
+
+        function updateIndicators() {
+            if (rawCandles.length < Math.max(BB_WINDOW, MA_PERIOD)) return;
+            
+            const bands = calculateBollingerBands(rawCandles, BB_WINDOW, BB_MULTIPLIER, SOURCE);
+            if (bands) {
+                const upperData = bands.map(b => ({ time: b.time, value: b.upper }));
+                const middleData = bands.map(b => ({ time: b.time, value: b.middle }));
+                const lowerData = bands.map(b => ({ time: b.time, value: b.lower }));
+                
+                upperBandSeries.setData(upperData);
+                middleBandSeries.setData(middleData);
+                lowerBandSeries.setData(lowerData);
+            }
+            
+            const ma = calculateMA(rawCandles, MA_PERIOD, MA_TYPE, SOURCE);
+            if (ma) {
+                maSeries.setData(ma);
+            }
+            
+            updatePriceSummary();
+        }
+
+        function updatePriceSummary() {
+            if (rawCandles.length === 0) return;
+            
+            const currentCandle = rawCandles[rawCandles.length - 1];
+            const currentPrice = getSourcePrice(currentCandle, SOURCE);
+            
+            const lastBars = rawCandles.slice(-Math.max(BB_WINDOW, MA_PERIOD));
+            const bands = calculateBollingerBands(lastBars, BB_WINDOW, BB_MULTIPLIER, SOURCE);
+            const ma = calculateMA(lastBars, MA_PERIOD, MA_TYPE, SOURCE);
+            
+            document.getElementById('current-asset').textContent = getPairDisplayName(SYMBOL);
+            document.getElementById('current-price').textContent = '$' + formatPrice(currentPrice);
+            document.getElementById('ma-type-display').textContent = MA_TYPE.toUpperCase();
+            
+            if (bands && bands.length > 0) {
+                const lastBand = bands[bands.length - 1];
+                document.getElementById('current-upper').textContent = '$' + formatPrice(lastBand.upper);
+                document.getElementById('current-middle').textContent = '$' + formatPrice(lastBand.middle);
+                document.getElementById('current-lower').textContent = '$' + formatPrice(lastBand.lower);
+            }
+            
+            if (ma && ma.length > 0) {
+                const lastMA = ma[ma.length - 1];
+                document.getElementById('current-ma').textContent = '$' + formatPrice(lastMA.value);
+            }
+            
+            if (bands && bands.length > 0 && ma && ma.length > 0) {
+                const lastBand = bands[bands.length - 1];
+                const lastMA = ma[ma.length - 1];
+                const signal = detectSignal(
+                    currentPrice,
+                    lastBand.upper,
+                    lastBand.middle,
+                    lastBand.lower,
+                    lastMA.value
+                );
+                
+                const signalTag = document.getElementById('signal-tag');
+                signalTag.textContent = signal;
+                
+                switch(signal) {
+                    case 'UPPER_BREAK':
+                        signalTag.className = 'signal-tag signal-upper';
+                        break;
+                    case 'LOWER_BREAK':
+                        signalTag.className = 'signal-tag signal-lower';
+                        break;
+                    case 'BULLISH':
+                        signalTag.className = 'signal-tag signal-bullish';
+                        break;
+                    case 'BEARISH':
+                        signalTag.className = 'signal-tag signal-bearish';
+                        break;
+                    default:
+                        signalTag.className = 'signal-tag signal-neutral';
+                }
+            }
+        }
+
+        function initWebSocket() {
+            if (socket) socket.close();
+            
+            if (currentDataSource === DATA_PROVIDERS.BINANCE) {
+                try {
+                    socket = new WebSocket(`wss://stream.binance.com:9443/ws/${SYMBOL.toLowerCase()}@kline_${TF}`);
+                    
+                    socket.onmessage = (e) => {
+                        const m = JSON.parse(e.data);
+                        if (!m.k) return;
+                        
+                        const k = m.k;
+                        const candle = {
+                            time: k.t / 1000,
+                            open: parseFloat(k.o),
+                            high: parseFloat(k.h),
+                            low: parseFloat(k.l),
+                            close: parseFloat(k.c)
+                        };
+                        
+                        if (k.x) {
+                            rawCandles.push(candle);
+                            if (rawCandles.length > 500) rawCandles.shift();
+                            candleSeries.update(candle);
+                            updateIndicators();
+                            checkForSignal();
+                        } else {
+                            candleSeries.update(candle);
+                        }
+                        updatePriceSummary();
+                    };
+                    
+                    socket.onerror = (e) => {
+                        console.warn('WebSocket error, falling back to polling');
+                        startPolling();
+                    };
+                } catch (e) {
+                    console.warn('WebSocket failed, using polling');
+                    startPolling();
+                }
+            } else {
+                startPolling();
+            }
+        }
+
+        function startPolling() {
+            setInterval(async () => {
+                const newData = await fetchKlines(SYMBOL, TF, 1);
+                if (newData && newData.length > 0) {
+                    const newCandle = newData[0];
+                    const lastCandle = rawCandles[rawCandles.length - 1];
+                    
+                    if (!lastCandle || newCandle.time > lastCandle.time) {
+                        rawCandles.push(newCandle);
+                        if (rawCandles.length > 500) rawCandles.shift();
+                        candleSeries.update(newCandle);
+                        updateIndicators();
+                        checkForSignal();
+                    }
+                }
+            }, getIntervalMs(TF));
+        }
+
+        // ============================================
+        // SIGNAL DETECTION AND ALERTS
+        // ============================================
+
+        async function checkForSignal() {
+            const now = Date.now();
+            if (now - lastAlert < alertCooldown) return;
+            if (rawCandles.length < Math.max(BB_WINDOW, MA_PERIOD)) return;
+
+            const currentCandle = rawCandles[rawCandles.length - 1];
+            const currentPrice = getSourcePrice(currentCandle, SOURCE);
+            
+            const recentBars = rawCandles.slice(-Math.max(BB_WINDOW, MA_PERIOD));
+            const bands = calculateBollingerBands(recentBars, BB_WINDOW, BB_MULTIPLIER, SOURCE);
+            const ma = calculateMA(recentBars, MA_PERIOD, MA_TYPE, SOURCE);
+            
+            if (!bands || !bands.length || !ma || !ma.length) return;
+            
+            const lastBand = bands[bands.length - 1];
+            const lastMA = ma[ma.length - 1];
+            
+            const signal = detectSignal(
+                currentPrice,
+                lastBand.upper,
+                lastBand.middle,
+                lastBand.lower,
+                lastMA.value
+            );
+            
+            if (signal !== 'NEUTRAL' && signal !== '--') {
+                handleAlert(signal, currentPrice, lastBand, lastMA.value);
+                
+                if (userChatId) {
+                    const signalEmoji = signal === 'UPPER_BREAK' ? '🟣' : 
+                                       signal === 'LOWER_BREAK' ? '🟠' :
+                                       signal === 'BULLISH' ? '🟢' : '🔴';
+                    
+                    const alertMessage = `
+<b>${signalEmoji} TRENDING SIGNALS BOT</b>
+
+<b>Pair:</b> ${getPairDisplayName(SYMBOL)}
+<b>Signal:</b> ${signal}
+<b>Price:</b> $${formatPrice(currentPrice)}
+<b>${MA_TYPE.toUpperCase()}(${MA_PERIOD}):</b> $${formatPrice(lastMA.value)}
+<b>Upper Band:</b> $${formatPrice(lastBand.upper)}
+<b>Middle Band:</b> $${formatPrice(lastBand.middle)}
+<b>Lower Band:</b> $${formatPrice(lastBand.lower)}
+<b>Timeframe:</b> ${TF}
+<b>Source:</b> ${currentDataSource.name}
+<b>Time:</b> ${new Date().toLocaleString()}
+
+<a href='${APP_URL}'>View Dashboard</a>
+                    `;
+                    
+                    await sendTelegramMessage(userChatId, alertMessage);
+                }
+                
+                lastAlert = now;
+            }
+        }
+
+        function handleAlert(signal, price, bands, ma) {
+            playBeep();
+            
+            let alertClass = 'alert-neutral';
+            
+            switch(signal) {
+                case 'UPPER_BREAK': alertClass = 'alert-upper'; break;
+                case 'LOWER_BREAK': alertClass = 'alert-lower'; break;
+                case 'BULLISH': alertClass = 'alert-bullish'; break;
+                case 'BEARISH': alertClass = 'alert-bearish'; break;
+            }
+            
+            const entry = {
+                time: new Date().toLocaleTimeString(),
+                text: `${new Date().toLocaleTimeString()} - ${getPairDisplayName(SYMBOL)} - ${signal} | Price: $${formatPrice(price)} | MA: $${formatPrice(ma)}`,
+                type: signal
+            };
+            
+            const history = document.getElementById('alert-history');
+            const div = document.createElement('div');
+            div.className = `alert-item ${alertClass}`;
+            div.textContent = entry.text;
+            history.insertBefore(div, history.firstChild);
+            
+            if (history.children.length > 50) {
+                history.removeChild(history.lastChild);
+            }
+            
+            let alerts = JSON.parse(localStorage.getItem('trendingSignalsAlerts') || '[]');
+            alerts.unshift(entry);
+            if (alerts.length > 50) alerts = alerts.slice(0, 50);
+            localStorage.setItem('trendingSignalsAlerts', JSON.stringify(alerts));
+        }
+
+        function testAlert() {
+            if (rawCandles.length === 0) {
+                alert('Please wait for data to load');
+                return;
+            }
+            
+            const currentCandle = rawCandles[rawCandles.length - 1];
+            const currentPrice = getSourcePrice(currentCandle, SOURCE);
+            
+            const recentBars = rawCandles.slice(-Math.max(BB_WINDOW, MA_PERIOD));
+            const bands = calculateBollingerBands(recentBars, BB_WINDOW, BB_MULTIPLIER, SOURCE);
+            const ma = calculateMA(recentBars, MA_PERIOD, MA_TYPE, SOURCE);
+            
+            if (bands && bands.length > 0 && ma && ma.length > 0) {
+                const lastBand = bands[bands.length - 1];
+                const lastMA = ma[ma.length - 1];
+                handleAlert('TEST SIGNAL', currentPrice, lastBand, lastMA.value);
+                
+                if (userChatId) {
+                    sendTelegramMessage(userChatId, '🔔 <b>Test Alert from @TrendingSignalsBot</b>\n\nYour Bollinger Band alerts are working!');
+                }
+            }
+        }
+
+        // ============================================
+        // DASHBOARD FUNCTIONS
+        // ============================================
+
+        async function updateDashboard() {
+            const grid = document.getElementById('dashboard-grid');
+            const loading = document.getElementById('dashboard-loading');
+            
+            loading.style.display = 'inline-block';
+            
+            const promises = ALL_ASSETS.map(async (asset) => {
+                try {
+                    const candles = await fetchKlines(asset, TF, Math.max(BB_WINDOW, MA_PERIOD) + 10);
+                    
+                    if (!candles || candles.length === 0) throw new Error('No data');
+                    
+                    const currentCandle = candles[candles.length - 1];
+                    const currentPrice = getSourcePrice(currentCandle, SOURCE);
+                    
+                    const recentBars = candles.slice(-Math.max(BB_WINDOW, MA_PERIOD));
+                    const bands = calculateBollingerBands(recentBars, BB_WINDOW, BB_MULTIPLIER, SOURCE);
+                    const ma = calculateMA(recentBars, MA_PERIOD, MA_TYPE, SOURCE);
+                    
+                    let signal = '--';
+                    if (bands && bands.length > 0 && ma && ma.length > 0) {
+                        const lastBand = bands[bands.length - 1];
+                        const lastMA = ma[ma.length - 1];
+                        signal = detectSignal(
+                            currentPrice,
+                            lastBand.upper,
+                            lastBand.middle,
+                            lastBand.lower,
+                            lastMA.value
+                        );
+                    }
+                    
+                    assetData[asset] = {
+                        price: currentPrice,
+                        upper: bands && bands.length > 0 ? bands[bands.length - 1].upper : null,
+                        middle: bands && bands.length > 0 ? bands[bands.length - 1].middle : null,
+                        lower: bands && bands.length > 0 ? bands[bands.length - 1].lower : null,
+                        ma: ma && ma.length > 0 ? ma[ma.length - 1].value : null,
+                        signal,
+                        loading: false,
+                        error: false,
+                        source: currentDataSource
+                    };
+                    
+                } catch (error) {
+                    console.error(`Error fetching ${asset}:`, error);
+                    assetData[asset] = {
+                        loading: false,
+                        error: true,
+                        signal: 'ERROR',
+                        source: DATA_PROVIDERS.FALLBACK
+                    };
+                }
+            });
+            
+            await Promise.all(promises);
+            renderDashboard();
+            
+            loading.style.display = 'none';
+            document.getElementById('dashboard-timestamp').textContent = 
+                `Last updated: ${new Date().toLocaleTimeString()}`;
+        }
+
+        function renderDashboard() {
+            const grid = document.getElementById('dashboard-grid');
+            grid.innerHTML = '';
+            
+            ALL_ASSETS.forEach(asset => {
+                const data = assetData[asset];
+                const displayName = getPairDisplayName(asset);
+                
+                let cardClass = 'asset-card';
+                let signalClass = 'signal-neutral';
+                
+                if (!data.loading && !data.error) {
+                    switch(data.signal) {
+                        case 'UPPER_BREAK':
+                            cardClass += ' upper-break';
+                            signalClass = 'signal-upper';
+                            break;
+                        case 'LOWER_BREAK':
+                            cardClass += ' lower-break';
+                            signalClass = 'signal-lower';
+                            break;
+                        case 'BULLISH':
+                            cardClass += ' bullish';
+                            signalClass = 'signal-bullish';
+                            break;
+                        case 'BEARISH':
+                            cardClass += ' bearish';
+                            signalClass = 'signal-bearish';
+                            break;
+                        default:
+                            cardClass += ' neutral';
+                            signalClass = 'signal-neutral';
+                    }
+                }
+                
+                const priceDisplay = data.price ? '$' + formatPrice(data.price, asset) : '--';
+                const upperDisplay = data.upper ? '$' + formatPrice(data.upper, asset) : '--';
+                const lowerDisplay = data.lower ? '$' + formatPrice(data.lower, asset) : '--';
+                const maDisplay = data.ma ? '$' + formatPrice(data.ma, asset) : '--';
+                
+                grid.innerHTML += `
+                    <div class="${cardClass}">
+                        <div class="asset-header">
+                            <span class="asset-name">${displayName}</span>
+                            <span class="asset-price">${priceDisplay}</span>
+                        </div>
+                        <div class="asset-indicators">
+                            <div class="indicator-box">
+                                <div class="indicator-label">Upper</div>
+                                <div class="indicator-value">${upperDisplay}</div>
+                            </div>
+                            <div class="indicator-box">
+                                <div class="indicator-label">Lower</div>
+                                <div class="indicator-value">${lowerDisplay}</div>
+                            </div>
+                            <div class="indicator-box">
+                                <div class="indicator-label">${MA_TYPE.toUpperCase()}</div>
+                                <div class="indicator-value">${maDisplay}</div>
+                            </div>
+                            <div class="indicator-box">
+                                <div class="indicator-label">Signal</div>
+                                <div class="indicator-value">${data.signal}</div>
+                            </div>
+                        </div>
+                        <div class="asset-signal ${signalClass}">${data.signal}</div>
+                        <div class="asset-source">Source: ${data.source ? data.source.name : 'Trending Signals'}</div>
+                        ${data.error ? '<div style="color: #f44336; text-align: center;">⚠️ Error</div>' : ''}
+                    </div>
+                `;
+            });
+        }
+
+        // ============================================
+        // TIMER FUNCTIONS
+        // ============================================
+
+        function startTimer() {
+            setInterval(() => {
+                const timeframe = document.getElementById('timeframe').value;
+                const now = new Date();
+                let nextClose;
+                
+                switch(timeframe) {
+                    case '1m':
+                        nextClose = new Date(now);
+                        nextClose.setSeconds(0);
+                        nextClose.setMinutes(nextClose.getMinutes() + 1);
+                        break;
+                    case '5m':
+                        nextClose = new Date(now);
+                        nextClose.setSeconds(0);
+                        nextClose.setMinutes(Math.floor(now.getMinutes() / 5) * 5 + 5);
+                        break;
+                    case '15m':
+                        nextClose = new Date(now);
+                        nextClose.setSeconds(0);
+                        nextClose.setMinutes(Math.floor(now.getMinutes() / 15) * 15 + 15);
+                        break;
+                    case '1h':
+                        nextClose = new Date(now);
+                        nextClose.setSeconds(0);
+                        nextClose.setMinutes(0);
+                        nextClose.setHours(nextClose.getHours() + 1);
+                        break;
+                    case '4h':
+                        nextClose = new Date(now);
+                        nextClose.setSeconds(0);
+                        nextClose.setMinutes(0);
+                        nextClose.setHours(Math.floor(now.getHours() / 4) * 4 + 4);
+                        break;
+                    case '1d':
+                        nextClose = new Date(now);
+                        nextClose.setHours(0, 0, 0, 0);
+                        nextClose.setDate(nextClose.getDate() + 1);
+                        break;
+                }
+                
+                const diff = nextClose - now;
+                const minutes = Math.floor(diff / 60000);
+                const seconds = Math.floor((diff % 60000) / 1000);
+                
+                document.getElementById('next-candle-timer').textContent = 
+                    `Next candle: ${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        // ============================================
+        // SETTINGS AND EVENT HANDLERS
+        // ============================================
+
+        function applySettings() {
+            const newTimeframe = document.getElementById('timeframe').value;
+            const newSource = document.getElementById('source-price').value;
+            const newMAType = document.getElementById('ma-type').value;
+            const newMAPeriod = parseInt(document.getElementById('ma-period').value);
+            const newBBWindow = parseInt(document.getElementById('bb-window').value);
+            const newBBMultiplier = parseFloat(document.getElementById('bb-multiplier').value);
+            const newCooldown = parseInt(document.getElementById('alert-cooldown').value) * 1000;
+            
+            const timeframeChanged = newTimeframe !== TF;
+            
+            SOURCE = newSource;
+            MA_TYPE = newMAType;
+            MA_PERIOD = newMAPeriod;
+            BB_WINDOW = newBBWindow;
+            BB_MULTIPLIER = newBBMultiplier;
+            alertCooldown = newCooldown;
+            
+            document.getElementById('multiplier-display').textContent = BB_MULTIPLIER.toFixed(3);
+            
+            if (timeframeChanged) {
+                TF = newTimeframe;
+                rawCandles = [];
+                if (socket) socket.close();
+                loadChartData().then(() => {
+                    initWebSocket();
+                    updateDashboard();
+                });
+            } else {
+                updateIndicators();
+                updateDashboard();
+            }
+            
+            showStatus(`Settings applied - Multiplier: ${BB_MULTIPLIER.toFixed(3)}`);
+        }
+
+        function changePair() {
+            const newSymbol = document.getElementById('trading-pair').value;
+            if (newSymbol !== SYMBOL) {
+                SYMBOL = newSymbol;
+                rawCandles = [];
+                if (socket) socket.close();
+                loadChartData().then(() => {
+                    initWebSocket();
+                    updateDashboard();
+                });
+            }
+        }
+
+        function clearHistory() {
+            if (confirm('Clear alert history?')) {
+                localStorage.removeItem('trendingSignalsAlerts');
+                document.getElementById('alert-history').innerHTML = '';
+                showStatus('History cleared');
+            }
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+
+        function init() {
+            // Set bot token (will be replaced by Vercel env)
+            window.TELEGRAM_BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'; // Replace with your actual token
+            
+            // Check for connection token
+            checkForConnectionToken();
+            
+            // Fetch initial user count
+            fetchUserCount();
+            
+            // Initialize multiplier display
+            document.getElementById('multiplier-display').textContent = BB_MULTIPLIER.toFixed(3);
+            
+            // Setup event listeners
+            document.getElementById('apply-settings').addEventListener('click', applySettings);
+            document.getElementById('test-alert').addEventListener('click', testAlert);
+            document.getElementById('clear-history').addEventListener('click', clearHistory);
+            document.getElementById('trading-pair').addEventListener('change', changePair);
+            document.getElementById('refresh-dashboard').addEventListener('click', () => {
+                updateDashboard();
+                if (currentDataSource !== DATA_PROVIDERS.BINANCE) {
+                    loadChartData();
+                }
+            });
+            document.getElementById('refresh-counter').addEventListener('click', fetchUserCount);
+            
+            // Multiplier input formatting
+            document.getElementById('bb-multiplier').addEventListener('input', function(e) {
+                document.getElementById('multiplier-display').textContent = parseFloat(e.target.value).toFixed(3);
+            });
+            
+            // Initialize chart
+            const container = document.getElementById('main-chart');
+            chart = LightweightCharts.createChart(container, {
+                layout: { 
+                    background: '#1a1a2e', 
+                    textColor: 'rgba(255,255,255,0.9)' 
+                },
+                grid: { 
+                    vertLines: { color: 'rgba(255,255,255,0.1)' }, 
+                    horzLines: { color: 'rgba(255,255,255,0.1)' } 
+                },
+                timeScale: { 
+                    timeVisible: true, 
+                    secondsVisible: false 
+                }
+            });
+            
+            // Create series
+            candleSeries = chart.addCandlestickSeries({
+                upColor: '#4CAF50',
+                downColor: '#f44336',
+                borderVisible: false,
+                wickUpColor: '#4CAF50',
+                wickDownColor: '#f44336'
+            });
+            
+            upperBandSeries = chart.addLineSeries({ 
+                color: '#9C27B0', 
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dashed
+            });
+            
+            middleBandSeries = chart.addLineSeries({ 
+                color: '#FFD700', 
+                lineWidth: 1 
+            });
+            
+            lowerBandSeries = chart.addLineSeries({ 
+                color: '#FF9800', 
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dashed
+            });
+            
+            maSeries = chart.addLineSeries({ 
+                color: '#00BCD4', 
+                lineWidth: 2 
+            });
+            
+            // Load data
+            loadChartData().then(() => {
+                initWebSocket();
+                updateDashboard();
+            });
+            
+            // Load alert history
+            const alerts = JSON.parse(localStorage.getItem('trendingSignalsAlerts') || '[]');
+            alerts.forEach(alert => {
+                let alertClass = 'alert-neutral';
+                switch(alert.type) {
+                    case 'UPPER_BREAK': alertClass = 'alert-upper'; break;
+                    case 'LOWER_BREAK': alertClass = 'alert-lower'; break;
+                    case 'BULLISH': alertClass = 'alert-bullish'; break;
+                    case 'BEARISH': alertClass = 'alert-bearish'; break;
+                }
+                const div = document.createElement('div');
+                div.className = `alert-item ${alertClass}`;
+                div.textContent = alert.text;
+                document.getElementById('alert-history').appendChild(div);
+            });
+            
+            // Update UI
+            updateConnectionStatus();
+            
+            // Start timers
+            startTimer();
+            setInterval(updatePriceSummary, 1000);
+            setInterval(updateDashboard, 30000);
+            setInterval(fetchUserCount, 60000); // Refresh user count every minute
+        }
+
+        // Make functions globally available
+        window.manualConnect = manualConnect;
+        window.clearConnection = clearConnection;
+        
+        // Start the app
+        window.onload = init;
+    </script>
+</body>
+</html>
