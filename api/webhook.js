@@ -1,12 +1,20 @@
 // api/webhook.js
-// Updated to use Upstash Redis for stats
+// Updated to use Upstash Redis for stats (correct import)
 
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client
+// Initialize Redis client using environment variables
 const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
+    // Log function invocation for debugging
+    console.log('🚀 Webhook function invoked at:', new Date().toISOString());
+    console.log('🔧 Environment check:', { 
+        hasBotToken: !!process.env.TELEGRAM_BOT_TOKEN,
+        hasSalt: !!process.env.SALT,
+        hasRedisUrl: !!process.env.KV_REST_API_URL
+    });
+
     // Set CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -19,6 +27,7 @@ export default async function handler(req, res) {
 
     // Handle GET request for testing
     if (req.method === 'GET') {
+        console.log('📨 GET request received');
         return res.status(200).json({ 
             status: 'ok', 
             message: 'Trending Signals Bot is running',
@@ -33,11 +42,22 @@ export default async function handler(req, res) {
             const update = req.body;
             console.log('📩 Received update:', JSON.stringify(update));
             
+            // Check if this is a message
+            if (!update.message) {
+                console.log('⚠️ No message in update');
+                return res.status(200).json({ ok: true });
+            }
+
+            const chatId = update.message.chat.id;
+            const messageText = update.message.text || '';
+            const firstName = update.message.chat.first_name || 'Trader';
+            const username = update.message.chat.username || '';
+            
+            console.log(`👤 Chat ID: ${chatId}, Message: ${messageText}, User: ${firstName}`);
+
             // Handle /start command
-            if (update.message?.text === '/start') {
-                const chatId = update.message.chat.id;
-                const firstName = update.message.chat.first_name || 'Trader';
-                const username = update.message.chat.username || '';
+            if (messageText === '/start') {
+                console.log('🚀 Processing /start command');
                 
                 // Get app URL from environment or request
                 const appUrl = process.env.VERCEL_URL 
@@ -52,6 +72,7 @@ export default async function handler(req, res) {
                     .replace(/=/g, '');
                 
                 const connectionLink = `${appUrl}/?connect=${token}`;
+                console.log(`🔗 Generated connection link: ${connectionLink}`);
                 
                 // Check if this is a new user
                 const crypto = require('crypto');
@@ -59,15 +80,18 @@ export default async function handler(req, res) {
                     .update(chatId.toString() + (process.env.SALT || 'trending-signals-salt'))
                     .digest('hex');
                 
+                console.log(`🔐 User hash: ${hash.substring(0, 8)}...`);
+                
                 const isNew = await redis.setnx(`user:${hash}`, Date.now());
+                console.log(`👥 Is new user: ${isNew === 1 ? 'Yes' : 'No'}`);
                 
                 if (isNew === 1) {
                     // This is a new unique user
                     await redis.incr('trending_signals_users');
                     
-                    // Add to recent users
+                    // Add to recent users set with 24h expiry
                     await redis.sadd('recent_users_set', hash);
-                    await redis.expire('recent_users_set', 86400);
+                    await redis.expire('recent_users_set', 86400); // 24 hours
                     
                     // Update recent count
                     const recentCount = await redis.scard('recent_users_set');
@@ -76,13 +100,18 @@ export default async function handler(req, res) {
                     // Track daily new users
                     const today = new Date().toISOString().split('T')[0];
                     await redis.incr(`stats:${today}`);
-                    await redis.expire(`stats:${today}`, 2592000);
+                    await redis.expire(`stats:${today}`, 2592000); // 30 days
+                    
+                    console.log(`✅ New user counted. Total: ${await redis.get('trending_signals_users')}`);
                 }
                 
                 // Get current user count
                 const userCount = await redis.get('trending_signals_users') || 0;
-                const todayUsers = await redis.get(`stats:${new Date().toISOString().split('T')[0]}`) || 0;
+                const today = new Date().toISOString().split('T')[0];
+                const todayUsers = await redis.get(`stats:${today}`) || 0;
                 
+                console.log(`📊 Current stats: totalUsers=${userCount}, todayUsers=${todayUsers}`);
+
                 // Create welcome message
                 const welcomeMessage = `📈 <b>Welcome to Trending Signals Bot, ${firstName}!</b>
 
@@ -105,19 +134,18 @@ export default async function handler(req, res) {
 • Timeframe (1m, 5m, 15m, 1h, 4h, 1d)
 
 📈 <b>Signal Types:</b>
-• 🟣 <b>UPPER_BREAK:</b> MA crosses above Upper Band (strong bullish)
-• 🟠 <b>LOWER_BREAK:</b> MA crosses below Lower Band (strong bearish)
+• 🟣 <b>UPPER_BREAK:</b> MA crosses above Upper Band
+• 🟠 <b>LOWER_BREAK:</b> MA crosses below Lower Band
 • 🟢 <b>BULLISH:</b> MA crosses above Middle Band
 • 🔴 <b>BEARISH:</b> MA crosses below Middle Band
 
 🚀 <b>Get Started:</b>
 1️⃣ Click the button below to connect your browser
 2️⃣ Customize your settings in the web app
-3️⃣ Wait for alerts!
-
-<a href='${appUrl}'>🌐 Open Dashboard</a>`;
+3️⃣ Wait for alerts!`;
 
                 // Send message via Telegram
+                console.log('📤 Sending welcome message to Telegram...');
                 const telegramResponse = await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -129,8 +157,7 @@ export default async function handler(req, res) {
                         reply_markup: {
                             inline_keyboard: [
                                 [{ text: '🔗 CONNECT BROWSER', url: connectionLink }],
-                                [{ text: '📊 OPEN DASHBOARD', url: appUrl }],
-                                [{ text: '👥 COMMUNITY STATS', callback_data: 'stats' }]
+                                [{ text: '📊 OPEN DASHBOARD', url: appUrl }]
                             ]
                         }
                     })
@@ -138,11 +165,15 @@ export default async function handler(req, res) {
                 
                 const telegramData = await telegramResponse.json();
                 console.log('📤 Telegram response:', telegramData);
+                
+                if (!telegramData.ok) {
+                    console.error('❌ Telegram API error:', telegramData);
+                }
             }
             
             // Handle /stats command
-            if (update.message?.text === '/stats') {
-                const chatId = update.message.chat.id;
+            else if (messageText === '/stats') {
+                console.log('📊 Processing /stats command');
                 
                 const userCount = await redis.get('trending_signals_users') || 0;
                 const totalSignals = await redis.get('trending_signals_total') || 0;
@@ -163,9 +194,7 @@ export default async function handler(req, res) {
 🔐 <b>Privacy Note:</b>
 • Counts are anonymous
 • No Chat IDs stored
-• You are one of ${userCount.toLocaleString()} traders!
-
-<a href='${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://trending-signals-bot.vercel.app'}'>View Live Dashboard</a>`;
+• You are one of ${userCount.toLocaleString()} traders!`;
 
                 await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
@@ -173,15 +202,14 @@ export default async function handler(req, res) {
                     body: JSON.stringify({
                         chat_id: chatId,
                         text: statsMessage,
-                        parse_mode: 'HTML',
-                        disable_web_page_preview: true
+                        parse_mode: 'HTML'
                     })
                 });
             }
             
             // Handle /help command
-            if (update.message?.text === '/help') {
-                const chatId = update.message.chat.id;
+            else if (messageText === '/help') {
+                console.log('❓ Processing /help command');
                 
                 const helpMessage = `📚 <b>Trending Signals Bot - Help</b>
 
@@ -192,21 +220,15 @@ export default async function handler(req, res) {
 • /privacy - Privacy information
 
 <b>How Signals Work:</b>
-The bot detects when your selected Moving Average (EMA/SMA) crosses any Bollinger Band line.
+The bot detects when your selected Moving Average crosses any Bollinger Band line.
 
 <b>Signal Interpretation:</b>
-• <b>UPPER_BREAK (🟣):</b> Strong bullish momentum - MA above upper band
-• <b>LOWER_BREAK (🟠):</b> Strong bearish momentum - MA below lower band
-• <b>BULLISH (🟢):</b> Trend turning bullish - MA above middle band
-• <b>BEARISH (🔴):</b> Trend turning bearish - MA below middle band
+• <b>UPPER_BREAK (🟣):</b> Strong bullish momentum
+• <b>LOWER_BREAK (🟠):</b> Strong bearish momentum
+• <b>BULLISH (🟢):</b> Trend turning bullish
+• <b>BEARISH (🔴):</b> Trend turning bearish
 
-<b>Settings Guide:</b>
-• <b>BB Window:</b> Higher = smoother bands, slower signals
-• <b>BB Multiplier:</b> Higher = wider bands, fewer signals
-• <b>MA Type:</b> EMA = faster reaction, SMA = smoother
-• <b>Source Price:</b> Which price to use for calculations
-
-<b>Need more help?</b> Visit the dashboard or contact @TrendingSignalsBot support.`;
+<b>Need more help?</b> Visit the dashboard or contact support.`;
 
                 await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
@@ -220,8 +242,8 @@ The bot detects when your selected Moving Average (EMA/SMA) crosses any Bollinge
             }
             
             // Handle /privacy command
-            if (update.message?.text === '/privacy') {
-                const chatId = update.message.chat.id;
+            else if (messageText === '/privacy') {
+                console.log('🔐 Processing /privacy command');
                 
                 const privacyMessage = `🔐 <b>Trending Signals Bot - Privacy Policy</b>
 
@@ -241,9 +263,7 @@ The bot detects when your selected Moving Average (EMA/SMA) crosses any Bollinge
 1. Open browser DevTools (F12)
 2. Go to Application → Local Storage
 3. See your Chat ID stored locally only
-4. Watch Network tab - alerts go directly to Telegram
-
-<a href='https://github.com/yourusername/trending-signals-bot'>View Source Code</a>`;
+4. Watch Network tab - alerts go directly to Telegram`;
 
                 await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
                     method: 'POST',
@@ -251,48 +271,18 @@ The bot detects when your selected Moving Average (EMA/SMA) crosses any Bollinge
                     body: JSON.stringify({
                         chat_id: chatId,
                         text: privacyMessage,
-                        parse_mode: 'HTML',
-                        disable_web_page_preview: true
+                        parse_mode: 'HTML'
                     })
                 });
             }
             
-            // Handle callback queries (button clicks)
-            if (update.callback_query) {
-                const chatId = update.callback_query.message.chat.id;
-                const data = update.callback_query.data;
-                
-                if (data === 'stats') {
-                    const userCount = await redis.get('trending_signals_users') || 0;
-                    const totalSignals = await redis.get('trending_signals_total') || 0;
-                    const today = new Date().toISOString().split('T')[0];
-                    const todayUsers = await redis.get(`stats:${today}`) || 0;
-                    
-                    await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            chat_id: chatId,
-                            text: `📊 <b>Live Stats:</b>\n\n👥 Total Users: ${userCount.toLocaleString()}\n📈 New Today: ${todayUsers.toLocaleString()}\n🎯 Total Signals: ${totalSignals.toLocaleString()}`,
-                            parse_mode: 'HTML'
-                        })
-                    });
-                }
-                
-                // Answer callback query
-                await fetch(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/answerCallbackQuery`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        callback_query_id: update.callback_query.id
-                    })
-                });
-            }
-            
+            console.log('✅ Webhook processing completed');
             return res.status(200).json({ ok: true });
             
         } catch (error) {
             console.error('❌ Webhook error:', error);
+            console.error('Error stack:', error.stack);
+            // Still return 200 to prevent Telegram from retrying
             return res.status(200).json({ ok: true, error: error.message });
         }
     }
