@@ -1,0 +1,12 @@
+{
+  "name": "trending-signals-bot",
+  "version": "1.0.0",
+  "description": "Bollinger Band & MA Crossover Trading Bot with Telegram Alerts - @TrendingSignalsBot",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'Static site, no build needed'"
+  },
+  "engines": {
+    "node": "24.x"
+  }
+}
