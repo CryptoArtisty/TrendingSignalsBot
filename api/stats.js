@@ -1,9 +1,9 @@
 // api/stats.js
-// Using Upstash Redis for persistent storage
+// Using Upstash Redis for persistent storage (correct import)
 
 import { Redis } from '@upstash/redis';
 
-// Initialize Redis client using environment variables
+// Initialize Redis client using environment variables from connected database
 const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
@@ -20,6 +20,8 @@ export default async function handler(req, res) {
     // GET request - return current stats
     if (req.method === 'GET') {
         try {
+            console.log('📊 Stats GET request received');
+            
             // Get stats from Redis
             const uniqueUsers = await redis.get('trending_signals_users') || 0;
             const totalSignals = await redis.get('trending_signals_total') || 0;
@@ -28,9 +30,11 @@ export default async function handler(req, res) {
             // Get recent users count (last 24h)
             const recentUsers = await redis.get('trending_signals_recent') || 0;
             
-            // Get today's new users (for extra stats)
-            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            // Get today's new users
+            const today = new Date().toISOString().split('T')[0];
             const todayUsers = await redis.get(`stats:${today}`) || 0;
+            
+            console.log(`📊 Stats: uniqueUsers=${uniqueUsers}, totalSignals=${totalSignals}`);
             
             return res.status(200).json({
                 uniqueUsers,
@@ -42,7 +46,7 @@ export default async function handler(req, res) {
                 bot: '@TrendingSignalsBot'
             });
         } catch (error) {
-            console.error('Redis fetch error:', error);
+            console.error('❌ Redis fetch error:', error);
             // Fallback if Redis fails
             return res.status(200).json({
                 uniqueUsers: 0,
@@ -59,6 +63,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
         try {
             const { action, chatId } = req.body;
+            console.log(`📊 Stats POST request: action=${action}, chatId provided=${!!chatId}`);
             
             if (action === 'increment' && chatId) {
                 // Create a hash of the chatId for checking uniqueness
@@ -68,11 +73,15 @@ export default async function handler(req, res) {
                     .update(chatId.toString() + (process.env.SALT || 'trending-signals-salt'))
                     .digest('hex');
                 
+                console.log(`🔐 Generated hash for user: ${hash.substring(0, 8)}...`);
+                
                 // Check if this user has been seen before using Redis SETNX (set if not exists)
                 const userKey = `user:${hash}`;
                 const isNew = await redis.setnx(userKey, Date.now());
                 
                 if (isNew === 1) { // 1 means key was set (new user)
+                    console.log('✨ New unique user detected!');
+                    
                     // Increment total users
                     await redis.incr('trending_signals_users');
                     
@@ -87,9 +96,11 @@ export default async function handler(req, res) {
                     // Track daily new users
                     const today = new Date().toISOString().split('T')[0];
                     await redis.incr(`stats:${today}`);
-                    
-                    // Set expiry for daily stats (keep for 30 days)
                     await redis.expire(`stats:${today}`, 2592000); // 30 days
+                    
+                    console.log(`✅ User count incremented. New recent count: ${recentCount}`);
+                } else {
+                    console.log('👋 Returning user detected');
                 }
                 
                 // Get updated counts
@@ -108,6 +119,8 @@ export default async function handler(req, res) {
             }
             
             if (action === 'signal') {
+                console.log('📈 Signal count increment requested');
+                
                 // Increment total signals counter
                 await redis.incr('trending_signals_total');
                 
@@ -122,7 +135,7 @@ export default async function handler(req, res) {
             return res.status(400).json({ error: 'Invalid action' });
             
         } catch (error) {
-            console.error('Stats update error:', error);
+            console.error('❌ Stats update error:', error);
             return res.status(500).json({ error: 'Internal error' });
         }
     }
